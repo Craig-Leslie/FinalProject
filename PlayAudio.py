@@ -1,4 +1,4 @@
-#import keyboard
+import keyboard
 from just_playback import Playback
 import time
 import tkinter as tk
@@ -7,14 +7,21 @@ from tkinter import filedialog as fd
 from tkinter.messagebox import showinfo
 import cv2
 from PIL import Image, ImageTk
+from pykinect2 import PyKinectRuntime
+from pykinect2 import PyKinectV2
+import threading
 
 
-
-
+#vid = PyKinectRuntime.PyKinectRuntime(PyKinectV2.FrameSourceTypes_Color)
 vid = cv2.VideoCapture(0)
 
+camera_open = False
 
-width, height = 800, 600
+kinect = PyKinectRuntime.PyKinectRuntime(
+    PyKinectV2.FrameSourceTypes_Color|PyKinectV2.FrameSourceTypes_Depth
+)
+
+width, height = 1920, 1080
 
 vid.set(cv2.CAP_PROP_FRAME_WIDTH, width)
 vid.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
@@ -68,7 +75,7 @@ def play_command():
 
 
 def open_camera():
-
+    """"
     _, frame = vid.read()
 
     opencv_image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGBA)
@@ -79,11 +86,41 @@ def open_camera():
     label_widget.configure(image=photo_image)
     label_widget.after(10, open_camera)
 
+    """
+    
+    
+        #time.sleep(0.5)
+    if kinect.has_new_color_frame():
+
+        #print("New frame")
+        rawColourFrame = kinect.get_last_color_frame()
+        #
+        shapedColourFrame = rawColourFrame.reshape((1080,1920,4))
+        shapedColourFrame = shapedColourFrame[:,:,:3]
+        shapedColourFrame = cv2.cvtColor(shapedColourFrame, cv2.COLOR_BGR2RGB)
+        convertedColourFrame = Image.fromarray(shapedColourFrame)
+        convertedColourFrame = ImageTk.PhotoImage(image=convertedColourFrame)
+        
+        webcamPanel.config(image=convertedColourFrame)
+        webcamPanel.image = convertedColourFrame
+
+
+        #cv2.imshow("Kinect RGB", frame)
+    
+    label_widget.after(10, open_camera)
+
+def close_camera():
+    global camera_open
+    camera_open = False
+        
+       
+
 open_button = Button(
     root,
     text='Open a File',
     command=select_file
 )
+
 
 pause_button = Button(
     root,
@@ -103,11 +140,16 @@ feed_button = Button(root,
                      text="Open Camera", 
                      command=open_camera)
 
+close_camera_button = Button(root,
+                      text="Close Camera",
+                      command = close_camera)
+
 canvas = tk.Canvas(root)
 
 feed_button.pack()
 
 open_button.pack(expand=True)
+close_camera_button.pack(expand=True)
 
 pause_button.pack()
 play_button.pack()
@@ -115,6 +157,13 @@ canvas.pack()
 label = tk.Label(root, text="Audio Path")
 label.pack()
 print(filename)
+
+img = Image.open("image1.png")
+img = img.resize((width, height))
+img = ImageTk.PhotoImage(image=img)
+
+webcamPanel = Label(root, image=img)
+webcamPanel.pack()
 root.mainloop()
 
 
