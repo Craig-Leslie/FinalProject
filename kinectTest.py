@@ -60,8 +60,13 @@ threshold = np.percentile(valid, 3) + 10
 
 depth_frame = np.array(depth_frame, dtype=np.float32)
 #depth[depth == 0] = np.nan
+depth_frame[depth_frame > 1000] = 0
 depth_frame[depth_frame > threshold] = 0
 
+nonZeroPixels = cv2.countNonZero(depth_frame)
+if(nonZeroPixels < 3000):
+    print("No hand detected")
+    exit()
 
 plt.imshow(depth_frame, cmap='gray')
 plt.colorbar()
@@ -94,6 +99,9 @@ plt.imshow(hand_crop, cmap='gray')
 plt.clim(0, 700)
 plt.colorbar()
 plt.show()
+
+
+
 
 model_prediction = model.predict(hand_crop.reshape(1, 128, 128, 1))
 print(model_prediction)
