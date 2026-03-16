@@ -97,7 +97,7 @@ def open_camera():
         #
         shapedColourFrame = rawColourFrame.reshape((1080,1920,4))
         shapedColourFrame = shapedColourFrame[:,:,:3]
-        shapedColourFrame = cv2.cvtColor(shapedColourFrame, cv2.COLOR_BGR2RGB)
+        shapedColourFrame = cv2.cvtColor(shapedColourFrame, cv2.COLOR_BGR)
         convertedColourFrame = Image.fromarray(shapedColourFrame)
         convertedColourFrame = ImageTk.PhotoImage(image=convertedColourFrame)
         
