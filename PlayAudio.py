@@ -1,3 +1,5 @@
+import os
+
 import keyboard
 from just_playback import Playback
 import time
@@ -14,6 +16,9 @@ import threading
 import keras
 import numpy as np
 import matplotlib.pyplot as plt
+import pygame
+
+pygame.mixer.init()
 
 gestures = {
     0: "Fist",
@@ -33,7 +38,7 @@ model = keras.models.load_model("my_model.h5")
 
 
 #vid = PyKinectRuntime.PyKinectRuntime(PyKinectV2.FrameSourceTypes_Color)
-vid = cv2.VideoCapture(0)
+#vid = cv2.VideoCapture(0)
 
 camera_open = False
 
@@ -43,201 +48,257 @@ kinect = PyKinectRuntime.PyKinectRuntime(
 
 width, height = 1920, 1080
 
-vid.set(cv2.CAP_PROP_FRAME_WIDTH, width)
-vid.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
+#vid.set(cv2.CAP_PROP_FRAME_WIDTH, width)
+#vid.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
 
 
-playback = Playback()
-playback.stop()
+#playback = Playback()
+#playback.stop()
 
+previousPredictedGesture = ""
+predictedGesture = None
+predictedGestureCount = 0
+confidentGesture = ""
 
 
 root = tk.Tk()
 root.bind('<Escape>', lambda e: root.quit())
-root.geometry('300x150')
+root.geometry('1920x1080')
 filename = "Initial"
 
 label_widget = Label(root)
 label_widget.pack()
 
 def select_file():
-    filetypes = (
+    possibleFiletypes = (
         ('Audio Files', '*.wav *.mp3'),
     )
 
     filename = fd.askopenfilename(
         title='Open a file',
         initialdir='/',
-        filetypes=filetypes)
+        filetypes=possibleFiletypes)
 
     if not filename:
-        label['text'] = "No file selected"
+        CurrentFile['text'] = "No Audiofile Selected"
         pause_button.config(state=tk.DISABLED)
         play_button.config(state=tk.DISABLED)
     
     else:
         pause_button.config(state=tk.NORMAL)
         play_button.config(state=tk.DISABLED)
-        label['text'] = filename
-        playback.load_file(filename)
-        playback.play()
+        CurrentFile['text'] = os.path.basename(os.path.normpath(filename))
+        #playback.load_file(filename)
+        #playback.play()
+        pygame.mixer.music.load(filename)
+        pygame.mixer.music.play()
 
 def pause_command():
-    playback.pause()
+    pygame.mixer.music.pause()
+
     pause_button.config(state=tk.DISABLED)
     play_button.config(state=tk.NORMAL)
 
 
 def play_command():
-    playback.play()
+    pygame.mixer.music.unpause()
     pause_button.config(state=tk.NORMAL)
     play_button.config(state=tk.DISABLED)
 
+def on_camera_button_click():
+    global camera_open
+    camera_open = True
+    threading.Thread(target=update_camera_loop).start()
 
-def open_camera():
-    """"
-    _, frame = vid.read()
+def update_camera_loop():
+    while camera_open == True:
+        update_camera()
 
-    opencv_image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGBA)
-    captured_image = Image.fromarray(opencv_image)
+def update_camera():
+    if(camera_open == False):
+        webcamPanel.config(image=img)
 
-    photo_image = ImageTk.PhotoImage(image=captured_image)
-    label_widget.photo_image = photo_image
-    label_widget.configure(image=photo_image)
-    label_widget.after(10, open_camera)
-
-    """
+    else:
+        if kinect.has_new_color_frame():
+            rawColourFrame = kinect.get_last_color_frame()
+            shapedColourFrame = rawColourFrame.reshape((1080,1920,4))
+            shapedColourFrame = shapedColourFrame[:,:,:3]
+            shapedColourFrame = cv2.cvtColor(shapedColourFrame, cv2.COLOR_RGB2BGR)
+            convertedColourFrame = Image.fromarray(shapedColourFrame)
+            convertedColourFrame = ImageTk.PhotoImage(image=convertedColourFrame)
+            
+            webcamPanel.config(image=convertedColourFrame)
+            webcamPanel.image = convertedColourFrame
     
-    
-        #time.sleep(0.5)
-    if kinect.has_new_color_frame():
-
-        #print("New frame")
-        rawColourFrame = kinect.get_last_color_frame()
-        #
-        shapedColourFrame = rawColourFrame.reshape((1080,1920,4))
-        shapedColourFrame = shapedColourFrame[:,:,:3]
-        shapedColourFrame = cv2.cvtColor(shapedColourFrame, cv2.COLOR_BGR)
-        convertedColourFrame = Image.fromarray(shapedColourFrame)
-        convertedColourFrame = ImageTk.PhotoImage(image=convertedColourFrame)
-        
-        webcamPanel.config(image=convertedColourFrame)
-        webcamPanel.image = convertedColourFrame
-
-
-        #cv2.imshow("Kinect RGB", frame)
-    
-    label_widget.after(10, open_camera)
 
 def close_camera():
     global camera_open
     camera_open = False
+    webcamPanel.config(image=img)
+
+def on_gesture_button_click():
+    global camera_open
+    threading.Thread(target=gesture_recognition_loop).start()
+
+def gesture_recognition_loop():
+    while camera_open == True:
+        gesture_recognition()
 
 def gesture_recognition():
-    time.sleep(0.5)
-    if (kinect.has_new_depth_frame()):
+    global previousPredictedGesture, predictedGesture, predictedGestureCount, confidentGesture, camera_open
+    #time.sleep(0.35)
+    if (kinect.has_new_depth_frame() and camera_open == True):
         depth_frame = kinect.get_last_depth_frame()
-    
+        depth_frame = np.reshape(depth_frame, (424, 512))
+        valid = depth_frame[depth_frame > 0]
+        threshold = np.percentile(valid, 3) + 10
+
+
+        depth_frame = np.array(depth_frame, dtype=np.float32)
+        depth_frame[depth_frame > threshold] = 0
+        print ("Min depth value: ", depth_frame[depth_frame > 0].min())
+        nonZeroPixels = cv2.countNonZero(depth_frame)
+        if((nonZeroPixels < 3000) or (depth_frame[depth_frame > 0].min() > 800)):
+            print("No hand detected")
+            label['text'] = "No hand detected"
+                
+        else:
+            #plt.imshow(depth_frame, cmap='gray')
+            #plt.clim(0, 700)
+            #plt.colorbar()
+            #plt.show()
+            mask = depth_frame > 0
+            mask = mask.astype(np.uint8)
+
+
+            num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(mask)
+            largest_label = 1 + np.argmax(stats[1:, cv2.CC_STAT_AREA])
+
+            clean_mask = (labels == largest_label).astype(np.uint8)
+
+            depth_frame = depth_frame * clean_mask
+            ys, xs = np.where(depth_frame>0)
+
+
+            padding = 20
+
+            ymin, ymax = max(0, ys.min() - padding), max(0, ys.max() + padding)
+            xmin, xmax = max(0, xs.min() - padding), max(0, xs.max() + padding)
+
+            print(ymin, ymax, xmin, xmax)
+            hand_crop = depth_frame[ymin:ymax, xmin:xmax]
+            hand_crop = cv2.resize(hand_crop, (128, 128))
+
+
+
+            model_prediction = model.predict(hand_crop.reshape(1, 128, 128, 1))
+            predictedGesture = gestures[model_prediction.argmax()]
+            print(predictedGesture)
+        
+            if(predictedGesture == previousPredictedGesture):
+                if(predictedGestureCount >= 2):
+                    previousConfidentGesture = confidentGesture
+                    confidentGesture = predictedGesture
+                    label['text'] = confidentGesture
+
+                    # For gestures that should only be triggered once, i.e playing, pausing
+                    if(confidentGesture != previousConfidentGesture):
+                        match predictedGesture:
+                            case "Fist":
+                                pygame.mixer.music.pause()
+                                pass
+                            case "Five Fingers":
+                                pygame.mixer.music.unpause()
+                                pass
+                    
+                    # For gestures that should be continuously triggered, i.e volume control, skipping through the track
+                    else:
+                        curVolume = pygame.mixer.music.get_volume()
+                        match predictedGesture:
+                            
+                            case "Single Finger":
+                                
+                                pygame.mixer.music.set_volume(curVolume + 0.2)
+                                pass
+                            case "Two Fingers":
+                                pygame.mixer.music.set_volume(curVolume - 0.2)
+                                pass
+                        print("Volume: ", curVolume)
+                        curVolume = pygame.mixer.music.get_volume()
+                        CurrentVolume['text'] = "Volume: " + str(curVolume)    
+                else:
+                    predictedGestureCount += 1
+            else:
+                predictedGestureCount = 0
+                previousPredictedGesture = predictedGesture
+        
     else:
-        return
+        print("No depth frame")
     
-    depth_frame = np.reshape(depth_frame, (424, 512))
-    valid = depth_frame[depth_frame > 0]
-    threshold = np.percentile(valid, 3) + 10
-
-
-    depth_frame = np.array(depth_frame, dtype=np.float32)
-    depth_frame[depth_frame > 1000] = 0
-    depth_frame[depth_frame > threshold] = 0
-
-    nonZeroPixels = cv2.countNonZero(depth_frame)
-    if(nonZeroPixels < 3000):
-        print("No hand detected")
-        label['text'] = "No hand detected"
-        return       
     
-    mask = depth_frame > 0
-    mask = mask.astype(np.uint8)
+# Sidebar
+sidebar = tk.Frame(root, width=200, bg='lightgray')
 
+info = tk.Frame(sidebar, bg='lightblue', height=100)
 
-    num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(mask)
-    largest_label = 1 + np.argmax(stats[1:, cv2.CC_STAT_AREA])
+CurrentFile = tk.Label(info, text="No Audiofile Selected")
+CurrentFile.pack()
 
-    clean_mask = (labels == largest_label).astype(np.uint8)
+getInitVolume = pygame.mixer.music.get_volume()
+CurrentVolume = tk.Label(info, text="Volume: " + str(getInitVolume))
+CurrentVolume.pack()
 
-    depth_frame = depth_frame * clean_mask
-    ys, xs = np.where(depth_frame>0)
-
-
-    padding = 20
-
-    ymin, ymax = max(0, ys.min() - padding), max(0, ys.max() + padding)
-    xmin, xmax = max(0, xs.min() - padding), max(0, xs.max() + padding)
-
-    print(ymin, ymax, xmin, xmax)
-    hand_crop = depth_frame[ymin:ymax, xmin:xmax]
-    hand_crop = cv2.resize(hand_crop, (128, 128))
-
-    #plt.imshow(hand_crop, cmap='gray')
-    #plt.clim(0, 700)
-    #plt.colorbar()
-    #plt.show()
-
-    model_prediction = model.predict(hand_crop.reshape(1, 128, 128, 1))
-    print(model_prediction)
-    print(gestures[model_prediction.argmax()])
-    label['text'] = gestures[model_prediction.argmax()]
-    label_widget.after(50, gesture_recognition)
+info.pack(fill=tk.X)
 
 open_button = Button(
-    root,
+    sidebar,
     text='Open a File',
     command=select_file
 )
+open_button.pack()
 
 
 pause_button = Button(
-    root,
+    sidebar,
     text='Pause',
     command=pause_command,
     state=tk.DISABLED
 )
+pause_button.pack()
 
 play_button = Button(
-    root,
+    sidebar,
     text='Play',
     command=play_command,
     state=tk.DISABLED
 )
+play_button.pack()
 
-feed_button = Button(root, 
+feed_button = Button(sidebar, 
                      text="Open Camera", 
-                     command=open_camera)
-
-close_camera_button = Button(root,
-                      text="Close Camera",
-                      command = close_camera)
-
-gesture_recognition_button = Button(root,
-                        text="Start Gesture Recognition",
-                        command = gesture_recognition)
-gesture_recognition_button.pack(expand=True)
-
-canvas = tk.Canvas(root)
-
+                     command=on_camera_button_click)
 feed_button.pack()
 
-open_button.pack(expand=True)
-close_camera_button.pack(expand=True)
+close_camera_button = Button(sidebar,
+                      text="Close Camera",
+                      command = close_camera)
+close_camera_button.pack()
 
-pause_button.pack()
-play_button.pack()
-canvas.pack()
-label = tk.Label(root, text="Audio Path")
-label.pack()
+gesture_recognition_button = Button(sidebar,
+                        text="Start Gesture Recognition",
+                        command = on_gesture_button_click)
+gesture_recognition_button.pack()
+
+sidebar.pack(side=tk.LEFT, fill=tk.Y)
+
+
+
+
+#canvas.pack()
+
 print(filename)
 
-img = Image.open("image1.png")
+img = Image.open("CameraDisabled.png")
 img = img.resize((width, height))
 img = ImageTk.PhotoImage(image=img)
 
