@@ -18,6 +18,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pygame
 
+from PIL import Image, ImageTk
+import sounddevice as sd
+
 pygame.mixer.init()
 
 gestures = {
@@ -30,7 +33,8 @@ gestures = {
     6: "Surfer",
     7: "L",
     8: "Thumbs Up",
-    9: "Rock On"
+    9: "Rock On",
+    10: None
 }
 
 depth_frame = None
@@ -40,7 +44,10 @@ model = keras.models.load_model("my_model.h5")
 #vid = PyKinectRuntime.PyKinectRuntime(PyKinectV2.FrameSourceTypes_Color)
 #vid = cv2.VideoCapture(0)
 
+stop_event = threading.Event()
+
 camera_open = False
+depth_open = False
 
 kinect = PyKinectRuntime.PyKinectRuntime(
     PyKinectV2.FrameSourceTypes_Color|PyKinectV2.FrameSourceTypes_Depth
@@ -55,14 +62,41 @@ width, height = 1920, 1080
 #playback = Playback()
 #playback.stop()
 
+
+audioMode = "None"
 previousPredictedGesture = ""
 predictedGesture = None
 predictedGestureCount = 0
 confidentGesture = ""
 
+def reset_system(event):
+    global audioMode, previousPredictedGesture, predictedGesture, predictedGestureCount, confidentGesture, camera_open, depth_open
+    audioMode = "None"
+    previousPredictedGesture = ""
+    predictedGesture = None
+    predictedGestureCount = 0
+    confidentGesture = ""
+    kinect.close()
+    
+    stop_event.set()
+    camera_open = False
+    #camera_update_thread.join()
+
+    camera_open = False
+    depth_open = False
+    #gesture_recognition_thread.join()
+    
+    webcamPanel.config(image=img)
+    
+    CurrentFile['text'] = "No Audiofile Selected"
+    CurrentGesture['text'] = "No Gesture Detected"
+    gesture_recognition_button.config(state=tk.DISABLED)
+    if(pygame.mixer.music.get_busy()):
+        pygame.mixer.music.stop()
+
 
 root = tk.Tk()
-root.bind('<Escape>', lambda e: root.quit())
+root.bind('<Escape>', reset_system)
 root.geometry('1920x1080')
 filename = "Initial"
 
@@ -70,28 +104,56 @@ label_widget = Label(root)
 label_widget.pack()
 
 def select_file():
+    
+    global audioMode, channels
     possibleFiletypes = (
         ('Audio Files', '*.wav *.mp3'),
     )
 
-    filename = fd.askopenfilename(
+    filenames = fd.askopenfilenames(
         title='Open a file',
         initialdir='/',
         filetypes=possibleFiletypes)
+    
 
-    if not filename:
+    if len(filenames) == 0:
         CurrentFile['text'] = "No Audiofile Selected"
         pause_button.config(state=tk.DISABLED)
         play_button.config(state=tk.DISABLED)
     
-    else:
+    elif len(filenames) == 1:
+        audioMode = "Single"
+        music_file = filenames[0]
+        #print(len(filenames))
         pause_button.config(state=tk.NORMAL)
         play_button.config(state=tk.DISABLED)
-        CurrentFile['text'] = os.path.basename(os.path.normpath(filename))
+        #print(filenames[0])
+        CurrentFile['text'] = os.path.basename(os.path.normpath(music_file))
         #playback.load_file(filename)
         #playback.play()
-        pygame.mixer.music.load(filename)
+        pygame.mixer.music.load(music_file)
+        pygame.mixer.music.set_volume(1.0)
         pygame.mixer.music.play()
+    
+    elif 8 > len(filenames) > 1:
+        audioMode = "Multi"
+        for i, file in enumerate(filenames):
+            stemText = tk.Label(gestureIcons, text=file.split("/")[-1])
+            stemText.grid(row=2, column=i)
+        pygame.mixer.set_num_channels(len(filenames))
+        stems = [pygame.mixer.Sound(file) for file in filenames]
+        CurrentFile['text'] = "Multiple Stems Loaded"
+        channels = [pygame.mixer.Channel(i) for i in range(len(stems))]
+
+        for i, channel in enumerate(channels):
+            channel.play(stems[i])
+            
+
+    else:
+        CurrentFile['text'] = "Too many files selected, please select 1-7 audio files"
+
+    currentMode['text'] = "Current Mode: " + audioMode
+            
 
 def pause_command():
     pygame.mixer.music.pause()
@@ -107,38 +169,57 @@ def play_command():
 
 def on_camera_button_click():
     global camera_open
-    camera_open = True
-    threading.Thread(target=update_camera_loop).start()
+    time.sleep(0.25)
+    if(kinect.has_new_color_frame()):
+        gesture_recognition_button.config(state=tk.NORMAL)
+
+        camera_open = True
+        stop_event.clear()
+        close_camera_button.config(state=tk.NORMAL)
+        global camera_update_thread
+        camera_update_thread = threading.Thread(target=update_camera_loop)
+        camera_update_thread.start()
+    else:
+        tk.messagebox.showerror(title="Camera Error", message="No Kinect detected, please ensure your Kinect is properly connected and restart the application.")
+        
 
 def update_camera_loop():
+    if(stop_event.is_set()):
+        return
     while camera_open == True:
         update_camera()
 
 def update_camera():
-    if(camera_open == False):
-        webcamPanel.config(image=img)
+    #if(camera_open == False):
+    #    webcamPanel.config(image=img)
 
-    else:
-        if kinect.has_new_color_frame():
-            rawColourFrame = kinect.get_last_color_frame()
-            shapedColourFrame = rawColourFrame.reshape((1080,1920,4))
-            shapedColourFrame = shapedColourFrame[:,:,:3]
-            shapedColourFrame = cv2.cvtColor(shapedColourFrame, cv2.COLOR_RGB2BGR)
-            convertedColourFrame = Image.fromarray(shapedColourFrame)
-            convertedColourFrame = ImageTk.PhotoImage(image=convertedColourFrame)
-            
-            webcamPanel.config(image=convertedColourFrame)
-            webcamPanel.image = convertedColourFrame
-    
+    #else:
+    if kinect.has_new_color_frame():
+        rawColourFrame = kinect.get_last_color_frame()
+        shapedColourFrame = rawColourFrame.reshape((1080,1920,4))
+        shapedColourFrame = shapedColourFrame[:,:,:3]
+        shapedColourFrame = cv2.cvtColor(shapedColourFrame, cv2.COLOR_RGB2BGR)
+        convertedColourFrame = Image.fromarray(shapedColourFrame)
+        convertedColourFrame = ImageTk.PhotoImage(image=convertedColourFrame)
+        
+        webcamPanel.config(image=convertedColourFrame)
+        webcamPanel.image = convertedColourFrame
+
 
 def close_camera():
-    global camera_open
+    global camera_open, depth_open
     camera_open = False
+    depth_open = False
     webcamPanel.config(image=img)
 
 def on_gesture_button_click():
-    global camera_open
-    threading.Thread(target=gesture_recognition_loop).start()
+    
+    global camera_open, depth_open
+    if(depth_open == False):
+        depth_open = True
+        global gesture_recognition_thread
+        gesture_recognition_thread = threading.Thread(target=gesture_recognition_loop)
+        gesture_recognition_thread.start()
 
 def gesture_recognition_loop():
     while camera_open == True:
@@ -156,11 +237,12 @@ def gesture_recognition():
 
         depth_frame = np.array(depth_frame, dtype=np.float32)
         depth_frame[depth_frame > threshold] = 0
-        print ("Min depth value: ", depth_frame[depth_frame > 0].min())
+        #print ("Min depth value: ", depth_frame[depth_frame > 0].min())
         nonZeroPixels = cv2.countNonZero(depth_frame)
         if((nonZeroPixels < 3000) or (depth_frame[depth_frame > 0].min() > 800)):
-            print("No hand detected")
-            label['text'] = "No hand detected"
+            #print("No hand detected")
+            predictedGesture = None
+            CurrentGesture['text'] = "No hand detected"
                 
         else:
             #plt.imshow(depth_frame, cmap='gray')
@@ -185,55 +267,94 @@ def gesture_recognition():
             ymin, ymax = max(0, ys.min() - padding), max(0, ys.max() + padding)
             xmin, xmax = max(0, xs.min() - padding), max(0, xs.max() + padding)
 
-            print(ymin, ymax, xmin, xmax)
+            #print(ymin, ymax, xmin, xmax)
             hand_crop = depth_frame[ymin:ymax, xmin:xmax]
             hand_crop = cv2.resize(hand_crop, (128, 128))
 
 
 
-            model_prediction = model.predict(hand_crop.reshape(1, 128, 128, 1))
+            model_prediction = model.predict(hand_crop.reshape(1, 128, 128, 1), verbose=0)
+            predictedGestureValue = model_prediction.argmax()
             predictedGesture = gestures[model_prediction.argmax()]
-            print(predictedGesture)
-        
-            if(predictedGesture == previousPredictedGesture):
-                if(predictedGestureCount >= 2):
-                    previousConfidentGesture = confidentGesture
-                    confidentGesture = predictedGesture
-                    label['text'] = confidentGesture
+            #print(predictedGesture)
+            
 
-                    # For gestures that should only be triggered once, i.e playing, pausing
+        if(predictedGesture == previousPredictedGesture):
+            if(predictedGestureCount >= 4):
+                previousConfidentGesture = confidentGesture
+                confidentGesture = predictedGesture
+
+                print(confidentGesture)
+                if(predictedGesture!=None):
+                    for i in range(len(imageText)):
+                        if(i != predictedGestureValue):
+                            imageText[i].config(bg="white")
+                        elif(i == predictedGestureValue):
+                            imageText[i].config(bg="pale green")
+
+                CurrentGesture['text'] = confidentGesture
+
+                # For gestures that should only be triggered once, i.e playing, pausing, skipping through the track
+                if(audioMode == "Single"):
                     if(confidentGesture != previousConfidentGesture):
-                        match predictedGesture:
+                        match confidentGesture:
                             case "Fist":
                                 pygame.mixer.music.pause()
                                 pass
                             case "Five Fingers":
                                 pygame.mixer.music.unpause()
                                 pass
+                            case "L":
+                                #Needs redone, doesn't work
+                                pass
+                            case "Rock On":
+                                pygame.mixer.music.set_pos(0)
+                                pygame.mixer.music.pause()
+                                pass
+                            case "Surfer":
+                                pygame.mixer.music.fadeout(2000)
                     
-                    # For gestures that should be continuously triggered, i.e volume control, skipping through the track
+                    # For gestures that should be continuously triggered, i.e volume control
                     else:
                         curVolume = pygame.mixer.music.get_volume()
-                        match predictedGesture:
+                        match confidentGesture:
                             
                             case "Single Finger":
                                 
-                                pygame.mixer.music.set_volume(curVolume + 0.2)
+                                pygame.mixer.music.set_volume(curVolume + 0.05)
                                 pass
                             case "Two Fingers":
-                                pygame.mixer.music.set_volume(curVolume - 0.2)
+                                pygame.mixer.music.set_volume(curVolume - 0.05)
                                 pass
-                        print("Volume: ", curVolume)
                         curVolume = pygame.mixer.music.get_volume()
-                        CurrentVolume['text'] = "Volume: " + str(curVolume)    
-                else:
-                    predictedGestureCount += 1
+                        CurrentVolume['text'] = "Volume: " + str(round(curVolume,2))    
+
+                elif (audioMode == "Multi"):
+
+                    #print(confidentGesture, previousConfidentGesture)
+                    if(confidentGesture != previousConfidentGesture):
+                        curGestureIndex = list(gestures.values()).index(confidentGesture)
+                        if((confidentGesture == "Rock On") | (predictedGesture == None)):
+                            for channel in channels:
+                                channel.set_volume(1)
+                        else:
+                            for i, channel in enumerate(channels):
+                                if(i != curGestureIndex):
+                                    channel.set_volume(0)
+                                else:
+                                    channel.set_volume(1)
+                            
+                            
+                                    
             else:
-                predictedGestureCount = 0
-                previousPredictedGesture = predictedGesture
+                predictedGestureCount += 1
+        else:
+            predictedGestureCount = 0
+            previousPredictedGesture = predictedGesture
         
     else:
-        print("No depth frame")
+        predictedGesture = None
+        #print("No depth frame")
     
     
 # Sidebar
@@ -241,8 +362,14 @@ sidebar = tk.Frame(root, width=200, bg='lightgray')
 
 info = tk.Frame(sidebar, bg='lightblue', height=100)
 
+CurrentGesture = tk.Label(info, text="No Gesture Detected")
+CurrentGesture.pack()
+
 CurrentFile = tk.Label(info, text="No Audiofile Selected")
 CurrentFile.pack()
+
+currentMode = tk.Label(info, text="Current Mode: " + audioMode)
+currentMode.pack()
 
 getInitVolume = pygame.mixer.music.get_volume()
 CurrentVolume = tk.Label(info, text="Volume: " + str(getInitVolume))
@@ -281,22 +408,42 @@ feed_button.pack()
 
 close_camera_button = Button(sidebar,
                       text="Close Camera",
-                      command = close_camera)
+                      command = close_camera,
+                      state=tk.DISABLED)
 close_camera_button.pack()
 
 gesture_recognition_button = Button(sidebar,
                         text="Start Gesture Recognition",
-                        command = on_gesture_button_click)
+                        command = on_gesture_button_click,
+                        state=tk.DISABLED)
 gesture_recognition_button.pack()
 
 sidebar.pack(side=tk.LEFT, fill=tk.Y)
 
+# Gesture Icon Row
+gestureIcons = tk.Frame(root, height=200)
+
+imageNames = []
+for dirroot, dirs, files in os.walk("GestureIcons"):
+    for i, file in enumerate(files):
+        imageNames.append(file)        #gestureIcon.grid_columnconfigure(i, weight=1)
+
+images = []
+imageText = []
+for i in range(len(imageNames)):
+    img = ImageTk.PhotoImage(Image.open(os.path.join("GestureIcons", imageNames[i])).resize((200,200)))
+    images.append(img)
+    Label(gestureIcons, image=img).grid(row=0, column=i)
+    iconText = tk.Label(gestureIcons, text=list(gestures.values())[i])
+    iconText.grid(row=1, column=i)
+    imageText.append(iconText)
+
+        #gestureIcon.pack()
 
 
+gestureIcons.grid_columnconfigure(0, weight=1)
 
-#canvas.pack()
-
-print(filename)
+gestureIcons.pack(side=tk.BOTTOM)
 
 img = Image.open("CameraDisabled.png")
 img = img.resize((width, height))

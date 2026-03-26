@@ -8,6 +8,7 @@ from pykinect2 import PyKinectV2
 import matplotlib.pyplot as plt
 import keras
 
+
 gestures = {
     0: "Fist",
     1: "Single Finger",
@@ -60,7 +61,7 @@ threshold = np.percentile(valid, 3) + 10
 
 depth_frame = np.array(depth_frame, dtype=np.float32)
 #depth[depth == 0] = np.nan
-depth_frame[depth_frame > 1000] = 0
+#depth_frame[depth_frame > 1000] = 0
 depth_frame[depth_frame > threshold] = 0
 
 nonZeroPixels = cv2.countNonZero(depth_frame)
@@ -97,7 +98,8 @@ hand_crop = cv2.resize(hand_crop, (128, 128))
 print(hand_crop.max())
 plt.imshow(hand_crop, cmap='gray')
 plt.clim(0, 700)
-plt.colorbar()
+plt.axis('off')
+#plt.colorbar()
 plt.show()
 
 
