@@ -62,6 +62,9 @@ width, height = 1920, 1080
 #playback = Playback()
 #playback.stop()
 
+global curTrackTime
+curTrackTime = 0.0
+trackLength = 0
 
 audioMode = "None"
 previousPredictedGesture = ""
@@ -105,7 +108,7 @@ label_widget.pack()
 
 def select_file():
     
-    global audioMode, channels
+    global audioMode, channels, curTrackTime, trackLength
     possibleFiletypes = (
         ('Audio Files', '*.wav *.mp3'),
     )
@@ -122,6 +125,8 @@ def select_file():
         play_button.config(state=tk.DISABLED)
     
     elif len(filenames) == 1:
+        curTrackTime = 0.0
+        trackLength = pygame.mixer.Sound(filenames[0]).get_length()
         audioMode = "Single"
         music_file = filenames[0]
         #print(len(filenames))
@@ -168,7 +173,7 @@ def play_command():
     play_button.config(state=tk.DISABLED)
 
 def on_camera_button_click():
-    global camera_open
+    global camera_open, curTrackTime
     time.sleep(0.25)
     if(kinect.has_new_color_frame()):
         gesture_recognition_button.config(state=tk.NORMAL)
@@ -226,7 +231,7 @@ def gesture_recognition_loop():
         gesture_recognition()
 
 def gesture_recognition():
-    global previousPredictedGesture, predictedGesture, predictedGestureCount, confidentGesture, camera_open
+    global previousPredictedGesture, predictedGesture, predictedGestureCount, confidentGesture, camera_open, curTrackTime, trackLength
     #time.sleep(0.35)
     if (kinect.has_new_depth_frame() and camera_open == True):
         depth_frame = kinect.get_last_depth_frame()
@@ -306,13 +311,30 @@ def gesture_recognition():
                                 pass
                             case "L":
                                 #Needs redone, doesn't work
+                                curPos = pygame.mixer.music.get_pos() / 1000
+                                if (curTrackTime + curPos + 5 < trackLength):
+                                    curTrackTime += curPos + 5
+                                    pygame.mixer.music.set_pos(curTrackTime)
                                 pass
+                            
+                            case "Thumbs Up":
+                                curPos = pygame.mixer.music.get_pos() / 1000
+                                if (curTrackTime - curPos - 5 > 0):
+                                    curTrackTime -= curPos - 5
+                                    pygame.mixer.music.set_pos(curTrackTime)
+                                else:
+                                    pygame.mixer.music.set_pos(0)
+                                pass
+                            
                             case "Rock On":
                                 pygame.mixer.music.set_pos(0)
                                 pygame.mixer.music.pause()
                                 pass
                             case "Surfer":
-                                pygame.mixer.music.fadeout(2000)
+                                #pygame.mixer.music.fadeout(2000)
+                                #pygame.mixer.music.set_pos(0)
+                                #pygame.mixer.music.pause()
+                                pass
                     
                     # For gestures that should be continuously triggered, i.e volume control
                     else:
@@ -354,7 +376,8 @@ def gesture_recognition():
         
     else:
         predictedGesture = None
-        #print("No depth frame")
+        print("No depth frame")
+        print("Camera Open: ", camera_open)
     
     
 # Sidebar
