@@ -125,6 +125,12 @@ def select_file():
         play_button.config(state=tk.DISABLED)
     
     elif len(filenames) == 1:
+
+        gesture_controls = ["Play", "Pause", "Volume Up", "Volume down", "Etc."]
+        for gesture in gesture_controls:
+            stemText = tk.Label(gestureIcons, text=gesture)
+            stemText.grid(row=2, column=i)
+
         curTrackTime = 0.0
         trackLength = pygame.mixer.Sound(filenames[0]).get_length()
         audioMode = "Single"
