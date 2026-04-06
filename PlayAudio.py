@@ -71,14 +71,16 @@ previousPredictedGesture = ""
 predictedGesture = None
 predictedGestureCount = 0
 confidentGesture = ""
+activated_Stems = []
 
 def reset_system(event):
-    global audioMode, previousPredictedGesture, predictedGesture, predictedGestureCount, confidentGesture, camera_open, depth_open
+    global audioMode, previousPredictedGesture, predictedGesture, predictedGestureCount, confidentGesture, camera_open, depth_open, activated_Stems
     audioMode = "None"
     previousPredictedGesture = ""
     predictedGesture = None
     predictedGestureCount = 0
     confidentGesture = ""
+    activated_Stems = []
     kinect.close()
     
     stop_event.set()
@@ -254,6 +256,8 @@ def gesture_recognition():
             #print("No hand detected")
             predictedGesture = None
             CurrentGesture['text'] = "No hand detected"
+            if(audioMode == "Multi"):
+                activated_Stems = []
                 
         else:
             #plt.imshow(depth_frame, cmap='gray')
@@ -361,16 +365,31 @@ def gesture_recognition():
 
                     #print(confidentGesture, previousConfidentGesture)
                     if(confidentGesture != previousConfidentGesture):
-                        curGestureIndex = list(gestures.values()).index(confidentGesture)
-                        if((confidentGesture == "Rock On") | (predictedGesture == None)):
-                            for channel in channels:
-                                channel.set_volume(1)
-                        else:
+
+                        curGestureIndex = list(gestures.values()).index(confidentGesture) - 1
+
+                        # If previousconfident gesture is fist
+                        # Get track, add it to 'active stems'
+                        # Play all active stems, mute all others
+                        if(previousConfidentGesture == "Fist"):
+                            activated_Stems.append(curGestureIndex)
                             for i, channel in enumerate(channels):
-                                if(i != curGestureIndex):
+                                if(i not in activated_Stems):
                                     channel.set_volume(0)
                                 else:
                                     channel.set_volume(1)
+                        
+
+                        else:
+                            if((confidentGesture == "Rock On") | (predictedGesture == None)):
+                                for channel in channels:
+                                    channel.set_volume(1)
+                            else:
+                                for i, channel in enumerate(channels):
+                                    if(i != curGestureIndex):
+                                        channel.set_volume(0)
+                                    else:
+                                        channel.set_volume(1)
                             
                             
                                     
@@ -382,8 +401,11 @@ def gesture_recognition():
         
     else:
         predictedGesture = None
+        if(audioMode == "Multi"):
+                activated_Stems = []
         print("No depth frame")
         print("Camera Open: ", camera_open)
+        
     
     
 # Sidebar
