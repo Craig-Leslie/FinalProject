@@ -128,8 +128,8 @@ def select_file():
     
     elif len(filenames) == 1:
 
-        gesture_controls = ["Play", "Pause", "Volume Up", "Volume down", "Etc."]
-        for gesture in gesture_controls:
+        gesture_controls = ["Pause", "Volume Up", "Volume down", "", "", "Play", "", "+5 Seconds", "-5 Seconds", "Stop and Reset"]
+        for i, gesture in enumerate(gesture_controls):
             stemText = tk.Label(gestureIcons, text=gesture)
             stemText.grid(row=2, column=i)
 
@@ -150,9 +150,11 @@ def select_file():
     
     elif 8 > len(filenames) > 1:
         audioMode = "Multi"
+        stemText = tk.Label(gestureIcons, text="Build Stem")
+        stemText.grid(row=2, column=0)
         for i, file in enumerate(filenames):
             stemText = tk.Label(gestureIcons, text=file.split("/")[-1])
-            stemText.grid(row=2, column=i)
+            stemText.grid(row=2, column=i+1)
         pygame.mixer.set_num_channels(len(filenames))
         stems = [pygame.mixer.Sound(file) for file in filenames]
         CurrentFile['text'] = "Multiple Stems Loaded"
@@ -239,13 +241,13 @@ def gesture_recognition_loop():
         gesture_recognition()
 
 def gesture_recognition():
-    global previousPredictedGesture, predictedGesture, predictedGestureCount, confidentGesture, camera_open, curTrackTime, trackLength
+    global previousPredictedGesture, predictedGesture, predictedGestureCount, confidentGesture, camera_open, curTrackTime, trackLength, activated_Stems
     #time.sleep(0.35)
     if (kinect.has_new_depth_frame() and camera_open == True):
         depth_frame = kinect.get_last_depth_frame()
         depth_frame = np.reshape(depth_frame, (424, 512))
         valid = depth_frame[depth_frame > 0]
-        threshold = np.percentile(valid, 3) + 10
+        threshold = np.percentile(valid, 2) + 20
 
 
         depth_frame = np.array(depth_frame, dtype=np.float32)
@@ -258,6 +260,8 @@ def gesture_recognition():
             CurrentGesture['text'] = "No hand detected"
             if(audioMode == "Multi"):
                 activated_Stems = []
+                for i, channel in enumerate(channels):
+                    channel.set_volume(1)
                 
         else:
             #plt.imshow(depth_frame, cmap='gray')
@@ -295,7 +299,7 @@ def gesture_recognition():
             
 
         if(predictedGesture == previousPredictedGesture):
-            if(predictedGestureCount >= 4):
+            if(predictedGestureCount >= 6):
                 previousConfidentGesture = confidentGesture
                 confidentGesture = predictedGesture
 
@@ -308,6 +312,7 @@ def gesture_recognition():
                             imageText[i].config(bg="pale green")
 
                 CurrentGesture['text'] = confidentGesture
+
 
                 # For gestures that should only be triggered once, i.e playing, pausing, skipping through the track
                 if(audioMode == "Single"):
@@ -380,7 +385,7 @@ def gesture_recognition():
                                     channel.set_volume(1)
                         
 
-                        else:
+                        elif (confidentGesture != "Fist"):
                             if((confidentGesture == "Rock On") | (predictedGesture == None)):
                                 for channel in channels:
                                     channel.set_volume(1)
@@ -403,6 +408,8 @@ def gesture_recognition():
         predictedGesture = None
         if(audioMode == "Multi"):
                 activated_Stems = []
+                for i, channel in enumerate(channels):
+                    channel.set_volume(1)
         print("No depth frame")
         print("Camera Open: ", camera_open)
         

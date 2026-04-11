@@ -56,7 +56,7 @@ k = 0
 #threshold = (np.min(depth_frame[depth_frame>k])) + 75
 #print(threshold)
 valid = depth_frame[depth_frame > 0]
-threshold = np.percentile(valid, 3) + 10
+threshold = np.percentile(valid, 2) + 20
 
 
 depth_frame = np.array(depth_frame, dtype=np.float32)
