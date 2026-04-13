@@ -19,7 +19,7 @@ import matplotlib.pyplot as plt
 import pygame
 
 from PIL import Image, ImageTk
-import sounddevice as sd
+#import sounddevice as sd
 
 pygame.mixer.init()
 
@@ -201,12 +201,12 @@ def on_camera_button_click():
 def update_camera_loop():
     if(stop_event.is_set()):
         return
-    while camera_open == True:
+    while camera_open == True:    
         update_camera()
 
 def update_camera():
-    #if(camera_open == False):
-    #    webcamPanel.config(image=img)
+    if(camera_open == False):
+        webcamPanel.config(image=img)
 
     #else:
     if kinect.has_new_color_frame():
@@ -245,12 +245,17 @@ def gesture_recognition():
     #time.sleep(0.35)
     if (kinect.has_new_depth_frame() and camera_open == True):
         depth_frame = kinect.get_last_depth_frame()
+
+        
+
         depth_frame = np.reshape(depth_frame, (424, 512))
         valid = depth_frame[depth_frame > 0]
         threshold = np.percentile(valid, 2) + 20
 
 
         depth_frame = np.array(depth_frame, dtype=np.float32)
+        depth_frame = cv2.medianBlur(depth_frame.astype(np.uint16), 5)
+
         depth_frame[depth_frame > threshold] = 0
         #print ("Min depth value: ", depth_frame[depth_frame > 0].min())
         nonZeroPixels = cv2.countNonZero(depth_frame)
@@ -290,6 +295,13 @@ def gesture_recognition():
             hand_crop = depth_frame[ymin:ymax, xmin:xmax]
             hand_crop = cv2.resize(hand_crop, (128, 128))
 
+            # TEST
+            convertedDepthFrame = Image.fromarray(hand_crop)
+            convertedDepthFrame = ImageTk.PhotoImage(image=convertedDepthFrame)
+            
+            cropped_depth_feed.config(image=convertedDepthFrame)
+            cropped_depth_feed.image = convertedDepthFrame
+            #END TEST
 
 
             model_prediction = model.predict(hand_crop.reshape(1, 128, 128, 1), verbose=0)
@@ -299,7 +311,7 @@ def gesture_recognition():
             
 
         if(predictedGesture == previousPredictedGesture):
-            if(predictedGestureCount >= 6):
+            if(predictedGestureCount >= 3):
                 previousConfidentGesture = confidentGesture
                 confidentGesture = predictedGesture
 
@@ -476,6 +488,10 @@ gesture_recognition_button = Button(sidebar,
                         state=tk.DISABLED)
 gesture_recognition_button.pack()
 
+cropped_depth_feed = Label(sidebar,
+                           image=None)
+cropped_depth_feed.pack(side="bottom")
+
 sidebar.pack(side=tk.LEFT, fill=tk.Y)
 
 # Gesture Icon Row
@@ -489,7 +505,7 @@ for dirroot, dirs, files in os.walk("GestureIcons"):
 images = []
 imageText = []
 for i in range(len(imageNames)):
-    img = ImageTk.PhotoImage(Image.open(os.path.join("GestureIcons", imageNames[i])).resize((200,200)))
+    img = ImageTk.PhotoImage(Image.open(os.path.join("GestureIcons", imageNames[i])).resize((100,100)))
     images.append(img)
     Label(gestureIcons, image=img).grid(row=0, column=i)
     iconText = tk.Label(gestureIcons, text=list(gestures.values())[i])
