@@ -1,0 +1,9 @@
+just_playback==0.1.8
+keras==3.13.2
+keyboard==0.13.5
+matplotlib==3.10.9
+numpy==2.4.4
+opencv_python==4.13.0.92
+Pillow==12.2.0
+pygame==2.6.1
+pykinect2==0.1.0

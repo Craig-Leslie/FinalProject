@@ -7,6 +7,7 @@ import tkinter as tk
 from tkinter import *
 from tkinter import filedialog as fd
 from tkinter.messagebox import showinfo
+import tkinter.font as tkFont
 import cv2
 from PIL import Image, ImageTk
 from pykinect2 import PyKinectRuntime
@@ -141,7 +142,7 @@ def select_file():
         pause_button.config(state=tk.NORMAL)
         play_button.config(state=tk.DISABLED)
         #print(filenames[0])
-        CurrentFile['text'] = os.path.basename(os.path.normpath(music_file))
+        CurrentFile['text'] = "Single Audiofile Loaded"
         #playback.load_file(filename)
         #playback.play()
         pygame.mixer.music.load(music_file)
@@ -311,7 +312,7 @@ def gesture_recognition():
             
 
         if(predictedGesture == previousPredictedGesture):
-            if(predictedGestureCount >= 3):
+            if(predictedGestureCount >= 5):
                 previousConfidentGesture = confidentGesture
                 confidentGesture = predictedGesture
 
@@ -426,23 +427,23 @@ def gesture_recognition():
         print("Camera Open: ", camera_open)
         
     
-    
+resize_font = tkFont.Font(family="Arial", size=15)
 # Sidebar
 sidebar = tk.Frame(root, width=200, bg='lightgray')
 
 info = tk.Frame(sidebar, bg='lightblue', height=100)
 
-CurrentGesture = tk.Label(info, text="No Gesture Detected")
+CurrentGesture = tk.Label(info, text="No Gesture Detected", font=resize_font)
 CurrentGesture.pack()
 
-CurrentFile = tk.Label(info, text="No Audiofile Selected")
+CurrentFile = tk.Label(info, text="No Audiofile Selected", font=resize_font)
 CurrentFile.pack()
 
-currentMode = tk.Label(info, text="Current Mode: " + audioMode)
+currentMode = tk.Label(info, text="Current Mode: " + audioMode, font=resize_font)
 currentMode.pack()
 
 getInitVolume = pygame.mixer.music.get_volume()
-CurrentVolume = tk.Label(info, text="Volume: " + str(getInitVolume))
+CurrentVolume = tk.Label(info, text="Volume: " + str(getInitVolume), font=resize_font)
 CurrentVolume.pack()
 
 info.pack(fill=tk.X)
@@ -450,7 +451,8 @@ info.pack(fill=tk.X)
 open_button = Button(
     sidebar,
     text='Open a File',
-    command=select_file
+    command=select_file,
+    font=resize_font
 )
 open_button.pack()
 
@@ -459,7 +461,8 @@ pause_button = Button(
     sidebar,
     text='Pause',
     command=pause_command,
-    state=tk.DISABLED
+    state=tk.DISABLED,
+    font=resize_font
 )
 pause_button.pack()
 
@@ -467,29 +470,34 @@ play_button = Button(
     sidebar,
     text='Play',
     command=play_command,
-    state=tk.DISABLED
+    state=tk.DISABLED,
+    font=resize_font
 )
 play_button.pack()
 
 feed_button = Button(sidebar, 
                      text="Open Camera", 
-                     command=on_camera_button_click)
+                     command=on_camera_button_click,
+                     font=resize_font)
 feed_button.pack()
 
 close_camera_button = Button(sidebar,
                       text="Close Camera",
                       command = close_camera,
-                      state=tk.DISABLED)
+                      state=tk.DISABLED,
+                      font=resize_font)
 close_camera_button.pack()
 
 gesture_recognition_button = Button(sidebar,
                         text="Start Gesture Recognition",
                         command = on_gesture_button_click,
-                        state=tk.DISABLED)
+                        state=tk.DISABLED,
+                        font=resize_font)  
 gesture_recognition_button.pack()
 
 cropped_depth_feed = Label(sidebar,
-                           image=None)
+                           image=None,
+                           font=resize_font)
 cropped_depth_feed.pack(side="bottom")
 
 sidebar.pack(side=tk.LEFT, fill=tk.Y)
@@ -505,10 +513,10 @@ for dirroot, dirs, files in os.walk("GestureIcons"):
 images = []
 imageText = []
 for i in range(len(imageNames)):
-    img = ImageTk.PhotoImage(Image.open(os.path.join("GestureIcons", imageNames[i])).resize((100,100)))
+    img = ImageTk.PhotoImage(Image.open(os.path.join("GestureIcons", imageNames[i])).resize((150,150)))
     images.append(img)
-    Label(gestureIcons, image=img).grid(row=0, column=i)
-    iconText = tk.Label(gestureIcons, text=list(gestures.values())[i])
+    Label(gestureIcons, image=img, font=resize_font).grid(row=0, column=i)
+    iconText = tk.Label(gestureIcons, text=list(gestures.values())[i], font=resize_font)
     iconText.grid(row=1, column=i)
     imageText.append(iconText)
 
@@ -519,7 +527,7 @@ gestureIcons.grid_columnconfigure(0, weight=1)
 
 gestureIcons.pack(side=tk.BOTTOM)
 
-img = Image.open("CameraDisabled.png")
+img = Image.open("Images/CameraDisabled.png")
 img = img.resize((width, height))
 img = ImageTk.PhotoImage(image=img)
 
