@@ -5,10 +5,11 @@ To capture hand gestures from the user the depth sensor from a Microsoft Kinect 
 
 # Section 2 - Predicting Hand Gestures
 To predict hand gestures a CNN was trained on a pre-existing database of [hand gesture depth images](https://zhou-ren.github.io/publications.html), which were all preprocessed using the same method as the live data, in order to ensure similar outputs. Once trained to a satisfactory accuracy, the model can be saved and loaded at runtime. When predicting live gestures a confidence metric is used to ensure false positives are not captured. The same gesture must be recognised 4 times in a row before it’s passed on to the music control system. 
-
+![Image displaying the three stages of depth image preproccessing](/Images/hand_segmentation.png)
 # Section 3 - Controlling Music
 To control music, an interface was developed using TKinter. This interface provides controls to the user to upload audio, and start the gesture recognition system, and to provide visual feedback, such as the live RGB feed, the different hand gestures available to the user, what hand gesture is currently recognised, etc. The system operates in 2 modes based on what kind of song is chosen, as is explained below: 
   • While in single mode, hand gestures will alter properties of the selected song, such as 
   increasing/decreasing the volume, pausing, playing and restarting the song. 
   • While in stem mode, predicted hand gestures will play different parts of the song, one hand 
   gesture may play the isolated vocals, while another may play the drum track.
+![Image displaying the interface of the music control system](/Images/Interface.png)
