@@ -12,4 +12,4 @@ To control music, an interface was developed using TKinter. This interface provi
   increasing/decreasing the volume, pausing, playing and restarting the song. 
   • While in stem mode, predicted hand gestures will play different parts of the song, one hand 
   gesture may play the isolated vocals, while another may play the drum track.
-![Image displaying the interface of the music control system](/Images/Interface.png)
+![Image displaying the interface of the music control system](/Images/Interface.PNG)
